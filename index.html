@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sweep-orchard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: #0f172a; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  #hint {
+    position: fixed; top: 1rem; left: 50%; transform: translateX(-50%);
+    font-size: 0.9rem; letter-spacing: 0.15em; text-transform: uppercase;
+    opacity: 0.55; pointer-events: none; mix-blend-mode: screen;
+    user-select: none;
+  }
+</style>
+</head>
+<body>
+<div id="hint">sweep the orchard</div>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let w, h;
+const mouse = { x: -1000, y: -1000 };
+const trees = [];
+const leaves = [];
+
+function resize() {
+  w = canvas.width = window.innerWidth;
+  h = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+window.addEventListener('touchmove', e => { mouse.x = e.touches[0].clientX; mouse.y = e.touches[0].clientY; }, { passive: true });
+
+class Tree {
+  constructor() {
+    this.x = Math.random() * w;
+    this.y = h + 100 + Math.random() * 200;
+    this.h = 120 + Math.random() * 160;
+    this.w = 60 + Math.random() * 100;
+    this.col = `hsl(${140 + Math.random() * 40}, 20%, ${20 + Math.random() * 15}%)`;
+    this.trunkW = 14 + Math.random() * 12;
+  }
+  draw() {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    // trunk
+    ctx.fillStyle = '#3e2723';
+    ctx.beginPath();
+    ctx.ellipse(0, -this.h * 0.25, this.trunkW * 0.5, this.h * 0.45, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // canopy layers
+    for (let i = 0; i < 4; i++) {
+      ctx.globalAlpha = 0.7 - i * 0.12;
+      ctx.fillStyle = this.col;
+      ctx.beginPath();
+      ctx.ellipse(0, -this.h * (0.55 + i * 0.12), this.w * (1 - i * 0.15), this.h * 0.35, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+class Leaf {
+  constructor() { this.reset(); }
+  reset() {
+    this.x = Math.random() * w;
+    this.y = Math.random() * h;
+    this.vx = (Math.random() - 0.5) * 0.4;
+    this.vy = 0.6 + Math.random() * 1.2;
+    this.size = 3 + Math.random() * 6;
+    this.rot = Math.random() * Math.PI * 2;
+    this.vrot = (Math.random() - 0.5) * 0.05;
+    this.col = `hsl(${40 + Math.random() * 50}, 70%, ${50 + Math.random() * 20}%)`;
+    this.swing = Math.random() * Math.PI * 2;
+    this.swingSpeed = 0.01 + Math.random() * 0.03;
+  }
+  update() {
+    this.y += this.vy;
+    this.x += this.vx + Math.sin(this.swing) * 0.5;
+    this.swing += this.swingSpeed;
+    this.rot += this.vrot;
+    // sweep by mouse
+    const dx = this.x - mouse.x, dy = this.y - mouse.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d < 140) {
+      const force = (140 - d) / 140;
+      const angle = Math.atan2(dy, dx);
+      this.x += Math.cos(angle) * force * 3;
+      this.y += Math.sin(angle) * force * 3;
+      this.vy *= 0.95;
+    }
+    if (this.y > h + 20 || this.x < -20 || this.x > w + 20) this.reset();
+  }
+  draw() {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rot);
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = this.col;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, this.size, this.size * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+for (let i = 0; i < 9; i++) trees.push(new Tree());
+for (let i = 0; i < 120; i++) leaves.push(new Leaf());
+
+function draw() {
+  ctx.fillStyle = '#0b1120';
+  ctx.fillRect(0, 0, w, h);
+  // soft vignette
+  const grad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h));
+  grad.addColorStop(0, 'rgba(255,255,255,0.02)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.35)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  trees.sort((a, b) => a.y - b.y);
+  trees.forEach(t => t.draw());
+  leaves.forEach(l => { l.update(); l.draw(); });
+  requestAnimationFrame(draw);
+}
+
+resize();
+draw();
+</script>
+</body>
+</html>
